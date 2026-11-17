@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -7,20 +7,50 @@ import { api } from '../services/api';
 export default function AdminDashboard({ user, onLogout }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchProjects = useCallback(async (initialLoad = false) => {
+    if (initialLoad) setLoading(true);
+    else setRefreshing(true);
+    setError('');
+
+    try {
+      const data = await api.getProjects();
+      const projectList = data.projects || [];
+      const enriched = await Promise.all(
+        projectList.map(async (project) => {
+          const commentData = await api.getProjectComments(project.id);
+          return { ...project, comments: commentData.comments || [] };
+        })
+      );
+      setProjects(enriched);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchProjects() {
-      const data = await api.getProjects();
-      setProjects(data.projects || []);
-      setLoading(false);
-    }
-    fetchProjects().catch((err) => console.error(err));
-  }, []);
+    fetchProjects(true);
+    const refreshOnFocus = () => fetchProjects();
+    const intervalId = window.setInterval(() => fetchProjects(), 30000);
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [fetchProjects]);
 
   const stats = useMemo(() => {
     const published = projects.filter((p) => p.review_status === 'published').length;
     const total = projects.length;
-    return { total, published };
+    const pendingComments = projects.reduce((sum, p) => sum + (p.comments || []).filter((c) => String(c.status).toLowerCase() === 'pending').length, 0);
+    const acceptedComments = projects.reduce((sum, p) => sum + (p.comments || []).filter((c) => String(c.status).toLowerCase() === 'accepted').length, 0);
+    return { total, published, pendingComments, acceptedComments };
   }, [projects]);
 
   return (
@@ -29,7 +59,13 @@ export default function AdminDashboard({ user, onLogout }) {
       <div className="main-layout">
         <Sidebar user={user} />
         <main className="content-panel">
-          <h1>Admin Dashboard</h1>
+          <div className="section-title-row">
+            <h1>Admin Dashboard</h1>
+            <button className="btn secondary" onClick={() => fetchProjects()} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+          {error && <div className="error-box" role="alert">{error}</div>}
           {loading ? <div className="empty-state">Loading dashboard...</div> : (
             <>
               <div className="stats-grid">
@@ -42,8 +78,12 @@ export default function AdminDashboard({ user, onLogout }) {
                   <strong>{stats.published}</strong>
                 </div>
                 <div className="stat-card">
-                  <span>Pending Notes</span>
-                  <strong>{projects.filter((p) => p.review_status === 'draft').length}</strong>
+                  <span>Pending Comments</span>
+                  <strong>{stats.pendingComments}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>Accepted Comments</span>
+                  <strong>{stats.acceptedComments}</strong>
                 </div>
               </div>
 

@@ -11,6 +11,7 @@ export default function WorkflowManagement({ user, onLogout }) {
   const [steps, setSteps] = useState([]);
   const [form, setForm] = useState({ title: '', description: '' });
   const [editingId, setEditingId] = useState(null);
+  const [message, setMessage] = useState('');
 
   const fetchSteps = async () => {
     const data = await api.getProjectSteps(id);
@@ -18,20 +19,28 @@ export default function WorkflowManagement({ user, onLogout }) {
   };
 
   useEffect(() => {
-    fetchSteps().catch((err) => console.error(err));
+    fetchSteps().catch((err) => setMessage(err.message));
   }, [id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = { project_id: Number(id), ...form };
-    if (editingId) {
-      await api.updateStep(editingId, payload);
-      setEditingId(null);
-    } else {
-      await api.createStep(payload);
+    setMessage('');
+    try {
+      const payload = { project_id: Number(id), ...form };
+      if (editingId) {
+        await api.updateStep(editingId, payload);
+        setEditingId(null);
+      } else {
+        await api.createStep(payload);
+      }
+      setForm({ title: '', description: '' });
+      await fetchSteps();
+      setMessage('Workflow step saved.');
+    } catch (err) {
+      setMessage(err.message === 'Admin role required'
+        ? 'This session is not an admin session. Log out and sign in with the admin account.'
+        : err.message);
     }
-    setForm({ title: '', description: '' });
-    await fetchSteps();
   };
 
   const handleEdit = (step) => {
@@ -41,8 +50,13 @@ export default function WorkflowManagement({ user, onLogout }) {
 
   const handleDelete = async (stepId) => {
     if (!window.confirm('Delete step?')) return;
-    await api.deleteStep(stepId);
-    await fetchSteps();
+    try {
+      await api.deleteStep(stepId);
+      await fetchSteps();
+      setMessage('Workflow step deleted.');
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   const moveStep = async (step, direction) => {
@@ -53,8 +67,13 @@ export default function WorkflowManagement({ user, onLogout }) {
     const updated = [...nextOrder];
     [updated[currentIndex], updated[swapIndex]] = [updated[swapIndex], updated[currentIndex]];
     const orderedIds = updated.map((s) => s.id);
-    await api.reorderSteps(id, orderedIds);
-    await fetchSteps();
+    try {
+      await api.reorderSteps(id, orderedIds);
+      await fetchSteps();
+      setMessage('Workflow order updated.');
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   return (
@@ -79,6 +98,11 @@ export default function WorkflowManagement({ user, onLogout }) {
                 <button className="btn" type="submit">{editingId ? 'Save Changes' : 'Add Step'}</button>
                 {editingId && <button className="btn secondary" type="button" onClick={() => { setEditingId(null); setForm({ title: '', description: '' }); }}>Cancel</button>}
               </div>
+              {message && (
+                <div className={['Workflow step saved.', 'Workflow step deleted.', 'Workflow order updated.'].includes(message) ? 'success-box' : 'error-box'} role="status">
+                  {message}
+                </div>
+              )}
             </form>
 
             <div className="card">

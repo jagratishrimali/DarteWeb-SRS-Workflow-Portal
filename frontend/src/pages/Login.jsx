@@ -43,11 +43,6 @@ export default function Login({ onLogin }) {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        <div className="demo-credentials">
-          <strong>Demo credentials</strong>
-          <p>Admin: admin / Admin@123</p>
-          <p>Client: client / Client@123</p>
-        </div>
       </div>
     </div>
   );

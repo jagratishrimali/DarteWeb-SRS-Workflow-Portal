@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -12,8 +12,10 @@ export default function ClientProjectView({ user, onLogout }) {
   const [comments, setComments] = useState([]);
   const [selectedStep, setSelectedStep] = useState('');
   const [commentBody, setCommentBody] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const projectData = await api.getProjects();
     const found = (projectData.projects || []).find((p) => p.id === Number(id));
     setProject(found || null);
@@ -21,11 +23,20 @@ export default function ClientProjectView({ user, onLogout }) {
     setSteps(stepData.steps || []);
     const commentData = await api.getProjectComments(id);
     setComments(commentData.comments || []);
-  };
+    setError('');
+  }, [id]);
 
   useEffect(() => {
-    fetchData().catch((err) => console.error(err));
-  }, [id]);
+    const refresh = () => fetchData().catch((err) => setError(err.message));
+    refresh();
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [fetchData]);
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
@@ -34,9 +45,10 @@ export default function ClientProjectView({ user, onLogout }) {
       await api.submitComment({ step_id: Number(selectedStep), body: commentBody });
       setCommentBody('');
       setSelectedStep('');
+      setMessage('Comment submitted. It will remain Pending until an admin reviews it.');
       await fetchData();
     } catch (err) {
-      alert(err.message);
+      setError(err.message);
     }
   };
 
@@ -80,7 +92,14 @@ export default function ClientProjectView({ user, onLogout }) {
           </div>
 
           <div className="card">
-            <h3>My Status</h3>
+            <div className="section-title-row">
+              <h3>My Status</h3>
+              <button className="btn secondary" type="button" onClick={() => fetchData().catch((err) => setError(err.message))}>
+                Refresh status
+              </button>
+            </div>
+            {message && <div className="success-box" role="status">{message}</div>}
+            {error && <div className="error-box" role="alert">{error}</div>}
             {comments.length === 0 ? (
               <div className="empty-state">You have not submitted comments yet.</div>
             ) : (

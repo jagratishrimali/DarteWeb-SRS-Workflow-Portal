@@ -9,6 +9,7 @@ from extensions import db
 
 def create_app():
     from database.seed import seed_database
+    from database.migrations import migrate_legacy_comment_schema
 
     os.makedirs(INSTANCE_DIR, exist_ok=True)
     app = Flask(__name__)
@@ -27,6 +28,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        migrate_legacy_comment_schema()
         seed_database()
 
     from routes.auth_routes import auth_bp

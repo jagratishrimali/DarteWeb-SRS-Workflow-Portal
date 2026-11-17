@@ -21,7 +21,8 @@ def role_required(*roles):
             if user_id:
                 user = User.query.get(user_id)
             if not user or user.role not in roles:
-                return jsonify({'error': 'Access denied'}), 403
+                required_roles = ', '.join(roles)
+                return jsonify({'error': f'{required_roles.capitalize()} role required'}), 403
             return fn(*args, **kwargs)
         return wrapper
     return decorator

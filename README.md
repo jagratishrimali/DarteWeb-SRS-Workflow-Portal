@@ -4,7 +4,7 @@
 This project is a full-stack assessment application for D'ARTEWEB. It allows an administrator to prepare an SRS document, define workflow steps, publish the review to a client, collect feedback against specific steps, and approve or reject comments. Accepted feedback is stored in a project Memory File with traceability back to the original comment and workflow step.
 
 ## Project Objectives
-- Build a lightweight full-stack app using React + Flask + SQLite.
+- Build a lightweight full-stack app using React + Flask + MySQL.
 - Support admin and client roles with role-based restrictions.
 - Preserve workflow-step linkage even after edits.
 - Prevent duplicate Memory File entries from repeated approvals.
@@ -13,7 +13,7 @@ This project is a full-stack assessment application for D'ARTEWEB. It allows an 
 ## Technology Stack
 - Frontend: React.js with Vite
 - Backend: Python Flask
-- Database: SQLite
+- Database: MySQL
 - ORM: Flask-SQLAlchemy
 - Auth: session-based lightweight authentication
 - Styling: custom CSS
@@ -131,6 +131,46 @@ python app.py
 The backend runs at:
 - http://localhost:5000
 
+### Using MySQL
+
+
+1. Start your MySQL server and create the database once:
+   ```sql
+   CREATE DATABASE darteweb_portal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+2. Copy `backend/.env.example` to `backend/.env` and replace the example values with your MySQL credentials. The backend loads `backend/.env` automatically:
+   ```bash
+   Copy-Item backend\.env.example backend\.env
+   ```
+   For example, edit `backend/.env` to contain:
+   ```dotenv
+   SECRET_KEY=use_a_long_random_secret
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password
+   DB_NAME=darteweb_portal
+   ```
+3. Install dependencies and start Flask:
+   ```powershell
+   cd backend
+   python -m pip install -r requirements.txt
+   python app.py
+   ```
+   Flask-SQLAlchemy creates missing application tables at startup. The backend also migrates older MySQL `comments` schemas: it fills `project_id` from each comment's workflow step and converts legacy status enums to lowercase text so dashboard counts and review actions agree. Keep `backend/.env` private; it is ignored by Git. If `DATABASE_URL` is set in the environment, it takes precedence over the individual `DB_*` settings.
+
+#### MySQL access denied (error 1045)
+This error means MySQL rejected the username/password or does not allow that account to connect from the configured host. Check the credentials independently:
+```powershell
+mysql -h localhost -P 3306 -u root -p
+```
+The client will prompt for the password without showing it. If root cannot log in, use MySQL Workbench or another authorized MySQL administrator account to create a dedicated application user:
+```sql
+CREATE USER 'darteweb_app'@'localhost' IDENTIFIED BY 'choose_a_strong_password';
+GRANT ALL PRIVILEGES ON darteweb_portal.* TO 'darteweb_app'@'localhost';
+```
+Then set `DB_USER=darteweb_app` and `DB_PASSWORD="choose_a_strong_password"` in `backend/.env`. If the password contains `#` or spaces, keep it quoted. Do not share or commit the actual password.
+
 ### Frontend Setup
 Open a second terminal:
 ```bash
@@ -230,5 +270,3 @@ AI tools were used to scaffold the project structure and accelerate implementati
 9. Confirm it appears in Memory File.
 10. Reject another comment and confirm it does not appear in the Memory File.
 
-## Interview Notes
-This implementation is intentionally simple, readable, and modular so it can be explained confidently in a technical interview. The key business logic lives in the backend controllers and the project relationship model, while the React UI focuses on business workflow rather than unnecessary complexity.
